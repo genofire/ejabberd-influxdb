@@ -1,15 +1,51 @@
-#!/bin/sh
-EJABBERDCTL="sudo -u jabber ejabberdctl"
+#!/bin/env python3
 
-echo $($EJABBERDCTL muc_online_rooms global | wc -l)
-echo $($EJABBERDCTL connected_users_number)
+from subprocess import check_output
 
-echo $($EJABBERDCTL incoming_s2s_number)
-echo $($EJABBERDCTL outgoing_s2s_number)
+def call_count(args):
+	res = check_output(args)
+	return res.decode("utf-8").count('\n')
 
-for DOMAIN in $($EJABBERDCTL registered_vhosts); do
-	echo $DOMAIN
-	echo $($EJABBERDCTL registered_users $DOMAIN | wc -l)
-	echo $($EJABBERDCTL connected_users_vhost $DOMAIN | wc -l);
-	echo $($EJABBERDCTL muc_online_rooms $DOMAIN | wc -l)
-done;
+def call_lines(args):
+	res = check_output(args)
+	return res.decode("utf-8").split('\n')[:-1]
+
+def call_value(args):
+	res = check_output(args)
+	return int(res.decode("utf-8"))
+
+def writeglobal(ejabberdctl):
+	muc = call_count(ejabberdctl+["muc_online_rooms","global"])
+	registered_users = call_value(ejabberdctl+["stats", "registeredusers"])
+	connected_users = call_value(ejabberdctl+["connected_users_number"])
+	incoming_s2s = call_value(ejabberdctl+["incoming_s2s_number"])
+	outgoing_s2s = call_value(ejabberdctl+["outgoing_s2s_number"])
+
+	client_ipv4 = 0
+	client_ipv6 = 0
+	client_hybrid = 0
+
+	connected_users_info = call_lines(ejabberdctl+["connected_users_info"])
+	for connected_user in connected_users_info:
+		address = connected_user.split('\t')[2]
+		if ':' in address and '.' in address:
+			client_hybrid += 1
+		elif ':' in address:
+			client_ipv6 += 1
+		elif '.' in address:
+			client_ipv4 += 1
+		
+
+	return "ejabberd muc_online_rooms=%di,registered_users=%di,connected_users=%di,incoming_s2s=%di,outgoing_s2s=%di,client_hybrid=%di,client_ipv6=%di,client_ipv4=%di" % (muc, registered_users,connected_users, incoming_s2s, outgoing_s2s, client_hybrid, client_ipv6, client_ipv4)
+
+def writedomain(ejabberdctl, domain):
+	muc = call_count(ejabberdctl+["muc_online_rooms",domain])
+	registered_users = call_count(ejabberdctl+["registered_users", domain])
+	connected_users = call_count(ejabberdctl+["connected_users_vhost", domain])
+	return "ejabberd_vhost,domain=%s muc_online_rooms=%di,registered_users=%di,connected_users=%di" % (domain, muc, registered_users, connected_users)
+
+if __name__ == "__main__":
+	ejabberdctl = ["ejabberdctl"]
+	print(writeglobal(ejabberdctl))
+	for domain in call_lines(ejabberdctl+["registered_vhosts"]):
+		print(writedomain(ejabberdctl, domain))
