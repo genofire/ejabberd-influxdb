@@ -1,0 +1,15 @@
+#!/bin/sh
+EJABBERDCTL="sudo -u jabber ejabberdctl"
+
+echo $($EJABBERDCTL muc_online_rooms global | wc -l)
+echo $($EJABBERDCTL connected_users_number)
+
+echo $($EJABBERDCTL incoming_s2s_number)
+echo $($EJABBERDCTL outgoing_s2s_number)
+
+for DOMAIN in $($EJABBERDCTL registered_vhosts); do
+	echo $DOMAIN
+	echo $($EJABBERDCTL registered_users $DOMAIN | wc -l)
+	echo $($EJABBERDCTL connected_users_vhost $DOMAIN | wc -l);
+	echo $($EJABBERDCTL muc_online_rooms $DOMAIN | wc -l)
+done;
